@@ -1,0 +1,348 @@
+# ![image.png](attachment:bc5d113e-90d5-4204-8537-3cb416ef6dc3.png) <h1 style="text-align:center;">Bellabeat Case Study</h1>
+
+# <span style="color:#fd8f76"> 1. Summary </span>
+
+# <span style
+
+Bellabeat is a successful high-tech producer of health-oriented products designed specifically for women. The company provides a diverse range of products and services aimed at helping users gather information on their personal activity levels, stress levels, sleep habits, reproductive health, and mindfulness practices.
+
+For the purpose of our analysis, we will concentrate on Bellabeat's app as the product to investigate how consumers are utilizing their smart devices. By conducting this analysis, we can identify fresh opportunities for the company's expansion and uncover valuable insights to inform our marketing strategies.
+
+The Bellabeat application offers health-related information to its users. By applying this information, users can gain insight into their current behaviors and make informed decisions regarding their health. Additionally, the Bellabeat app is compatible with their range of smart wellness products.
+
+# <span style="color:#fd8f76;" > 2. Ask </span>
+
+2.1 Questions
+1. What are some trends in smart device usage? 
+2. How could these trends apply to Bellabeat customers? 
+3. How could these trends help influence Bellabeat's marketing strategy?
+
+2.2 Business Tasks
+
+Conduct an analysis of consumer behavior and usage patterns on FitBit smart devices in order to identify the key factors that shape trends and gain insights used to enhance Bellabeat's marketing strategy.
+
+# <span style="color:#fd8f76;" >3. Prepare</span>
+
+3.1 Data used
+
+For our case study, we used the FitBit Fitness Tracker Data as our source for information. The dataset is available on Kaggle and was made accessible through Mobius.
+
+3.2 Information About our Dataset
+
+The Kaggle dataset comprises data from 30 Fitbit users' personal fitness trackers collected between 31 days. These users agreed to share minute-by-minute data on their physical activity, sleep patterns, and heart rate. The datasets offer details on daily activity, step counts, and heart rate, which can be used to analyze the users' habits by tracking behavior and preferences. 
+
+3.3 Data Credibility and Integrity 
+
+Since the dataset consists of only 30 users and lacks demographic information, there is a possibility of encountering a sampling bias. It is uncertain whether the sample accurately represents the entire population. Furthermore, the dataset is not up-to-date and was gathered within a limited time frame of two months.
+
+# <span style="color:#fd8f76;" >4. Process</span>
+
+4.1 Installing packages and Importing datasets
+
+4.1.1. Install  and Load R packages
+
+* Tidyverse
+* Janitor
+* Skimr
+
+library("tidyverse")
+library("janitor")
+library("skimr")
+
+4.1.2 Import CSV datasets 
+
+daily_activity <- read.csv("/kaggle/input/fitabase-data-1/daily_activity.csv")
+daily_sleep <- read.csv("/kaggle/input/fitabase-data-1/daily_sleep.csv")
+hourly_intensities <- read.csv("/kaggle/input/fitabase-data-1/hourly_intensities.csv")
+
+4.2 Preview our datasets
+
+There were 18 CSV files available to use for this case study. Each dataset provides quantitative data on Bellabeat users collected over the course of a month. After verifying quality and inspecting each table, I proceeded by counting sample size of each table and verifying the time length of analysis - 31 days. Our analysis will focus on 3 of these data sets in order to answer the questions.
+
+* Daily_activity 
+* Daily_sleep
+* Hourly_intensities
+
+str(daily_activity)
+str(daily_sleep)
+str(hourly_intensities)
+
+4.3 Cleaning and formatting 
+
+4.3.1 Clean column names
+
+clean_names(daily_activity)
+daily_activity<- rename_with(daily_activity, tolower)
+clean_names(daily_sleep)
+daily_sleep <- rename_with(daily_sleep, tolower)
+clean_names(hourly_intensities)
+hourly_intensities <- rename_with(hourly_intensities, tolower)
+
+4.3.2 Verifying number of users
+
+n_unique(daily_activity$id)
+n_unique(daily_sleep$id)
+n_unique(hourly_intensities$id)
+
+These datasets do not have the same number of participants, however we will ignore this for training and practice purposes. 
+
+4.3.3 Remove duplicates and N/A
+
+daily_activity <- daily_activity %>%
+  distinct() %>%
+  drop_na()
+
+daily_sleep <- daily_sleep %>%
+  distinct() %>%
+  drop_na()
+
+hourly_intensities <- hourly_intensities %>%
+  distinct() %>%
+  drop_na()
+
+sum(duplicated(daily_activity))
+sum(duplicated(daily_sleep))
+sum(duplicated(hourly_intensities))
+
+4.3.4 Ensure consistency of date and time columns across all datasets 
+
+
+daily_activity <- daily_activity %>%
+  rename(date = activitydate) %>%
+  mutate(date = as_date(date,format = "%m/%d/%Y"))
+
+daily_sleep <- daily_sleep %>%
+  rename(date = sleepday) %>%
+  mutate(date = as_date(date,format ="%m/%d/%Y %I:%M:%S %p" , tz=Sys.timezone()))
+
+hourly_intensities<- hourly_intensities %>% 
+  rename(date_time = activityhour) %>% 
+  mutate(date_time = as.POSIXct(date_time,format ="%m/%d/%Y %I:%M:%S %p" , tz=Sys.timezone()))
+hourly_intensities<- separate(hourly_intensities, date_time, into = c("date", "time"), sep = " ") 
+
+head(daily_activity)
+head(daily_sleep)
+head(hourly_intensities)
+
+4.4 Merging datasets
+
+Before preparing the data for visualization, I will merge two data sets. I’m going to merge the daily_activity and daily_sleep datasets using the unique id and date column that I created after converting data to date time format.
+
+daily_merge <- merge(daily_activity, daily_sleep, by=c ("id", "date"))
+glimpse(daily_merge) 
+
+4.4.1 Calculate days of the week
+
+weekday_intensity<- hourly_intensities
+weekday_intensity$weekday<- strftime(weekday_intensity$date, "%A")
+head(weekday_intensity)
+
+weekday_data<- daily_merge
+weekday_data$weekday<- strftime(weekday_data$date, "%A")
+head(weekday_data)
+
+4.4.2 Calculate difference function for merged dataset to determine minutes spent awake
+
+weekday_data$totalminutesawake<- weekday_data$totaltimeinbed - weekday_data$totalminutesasleep
+head(weekday_data)
+
+4.4.3 Calculate Averages 
+
+We will focus on 5 variables for this analysis.
+
+user_average<- weekday_data %>%
+  group_by(id) %>%
+  summarise (mean_daily_steps = mean(totalsteps), mean_daily_sleep = mean(totalminutesasleep), mean_distance = mean(totaldistance), mean_time_awake = mean(totalminutesawake), mean_logged_activity = mean(loggedactivitiesdistance))
+head(user_average)
+
+4.5 Classify types of users
+
+* Sedentary - Less than 5000 steps/day
+* Lightly active -  5000 to 7499 steps/day
+* Fairly active - 7500 to 9999 steps/day
+* Very active - More than 10000 steps/day
+
+user_type <- user_average %>%
+  mutate(user_type = case_when(
+    mean_daily_steps < 5000 ~ "sedentary",
+    mean_daily_steps >= 5000 & mean_daily_steps < 7499 ~ "lightly active", 
+    mean_daily_steps >= 7500 & mean_daily_steps < 9999 ~ "fairly active", 
+    mean_daily_steps >= 10000 ~ "very active"))
+
+user_type_percent <- user_type %>%
+  group_by(user_type) %>%
+  summarise(total = n()) %>%
+  mutate(totals = sum(total)) %>%
+  group_by(user_type) %>%
+  summarise(total_percent = total / totals) %>%
+  mutate(labels = scales::percent(total_percent))
+user_type_percent$user_type <- factor(user_type_percent$user_type , levels = c("very active", "fairly active", "lightly active", "sedentary"))
+head(user_type_percent)
+
+* Bad sleep - Less than 360 minutes/day 
+* Normal sleep - 360 to 480 minutes/day
+* Over sleep - More than 480 minutes/day
+
+sleep_type <- user_type %>%
+  mutate(sleep_type = case_when(
+    mean_daily_sleep < 360 ~ "bad sleep",
+    mean_daily_sleep >= 360 & mean_daily_sleep < 480 ~ "normal sleep", 
+    mean_daily_sleep >= 480 ~ "over sleep"))
+
+sleep_type_percent <- sleep_type %>%
+  group_by(sleep_type) %>%
+  summarise(total = n()) %>%
+  mutate(totals = sum(total)) %>%
+  group_by(sleep_type) %>%
+  summarise(total_percent = total / totals) %>%
+  mutate(labels = scales::percent(total_percent))
+sleep_type_percent$sleep_type <- factor(sleep_type_percent$sleep_type , levels = c("bad sleep", "normal sleep", "over sleep"))
+head(sleep_type_percent)
+
+* All day - %100 of the day 
+* More than half the day - %50-100 of the day
+* Less than half the day - less than %50 of the day
+
+minutes_worn <- daily_activity %>% 
+  mutate(total_minutes_worn = veryactiveminutes+fairlyactiveminutes+lightlyactiveminutes+sedentaryminutes)%>%
+  mutate (percent_minutes_worn = (total_minutes_worn/1440)*100) %>%
+  mutate (worn = case_when(
+    percent_minutes_worn == 100 ~ "all day",
+    percent_minutes_worn < 100 & percent_minutes_worn >= 50~ "more than half day", 
+    percent_minutes_worn < 50 & percent_minutes_worn > 0 ~ "less than half day"))  
+minutes_worn_percent<- minutes_worn%>%
+  group_by(worn) %>%
+  summarise(total = n()) %>%
+  mutate(totals = sum(total)) %>%
+  group_by(worn) %>%
+  summarise(total_percent = total / totals) %>%
+  mutate(labels = scales::percent(total_percent))
+minutes_worn_percent$worn <- factor(minutes_worn_percent$worn, levels = c("all day", "more than half day", "less than half day"))
+head(minutes_worn_percent)
+
+4.5 Pull Averages 
+
+Calculating average intensity by time and weekday
+
+time_average<- weekday_intensity %>%
+  group_by(time) %>%
+  summarise (mean_intensity= mean(totalintensity))
+head(time_average)
+
+time_week_average<- weekday_intensity %>%
+  group_by(weekday) %>%
+  summarise (mean_intensity= mean(totalintensity))
+head(time_week_average)
+
+# <span style="color:#fd8f76;" >5. Visualize</span>
+
+5.1 Heat Map- Hours vs Intensity daily
+
+time_average %>%
+  group_by(time) %>%
+  summarize(Intensity = mean(mean_intensity)) %>%
+  ggplot() +
+  geom_col(mapping = aes(x=time, y = Intensity, fill = Intensity)) + 
+  labs(title = "Hourly Intensity", x="", y="") + 
+  scale_fill_gradient(high = "#fd8f76", low = "#8a5f3e")+
+  theme(axis.text.x = element_text(angle = 90))
+  
+  ![image.png](attachment:db854a72-5214-4110-8e7c-d3909f3d6453.png)
+  
+Analysis
+
+According to the data, there are two periods during the day where the intensity reaches its highest levels. These periods are from 2-4pm and 5-7pm. The reason behind this can be attributed to people traveling for lunch breaks, with the highest level of activity observed during the evening commute after work.
+
+5.2 Heat Map- Weekdays vs Average Intensity 
+
+5.2.1 Reorder Weekdays for Visualization 
+
+time_week_average$weekday <- factor(time_week_average$weekday, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+time_week_average %>%
+  group_by(weekday) %>%
+  summarize(Intensity = mean(mean_intensity)) %>%
+  ggplot() +
+  geom_col(mapping = aes(x= weekday, y = Intensity, fill = Intensity)) + 
+  labs(title = "Weekday Average Intensity", x="", y="") + 
+  scale_fill_gradient(high = "#fd8f76", low = "#8a5f3e")+
+  theme(axis.text.x = element_text(angle = 90))
+  
+![image.png](attachment:b4d0403b-5277-4c1b-8f70-8fdac90c1299.png)
+
+Analysis
+
+Based on the data, Tuesdays and Saturdays stand out as the days when individuals typically expend the most vigorous energy, on average. However, Sundays are characterized by a notably relaxed atmosphere following the most intense activity day.
+
+5.3 Bar Chart- Time Awake vs User Type sleep fill Sleep Type 
+
+ggplot(sleep_type, aes(user_type, mean_time_awake, fill = sleep_type)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  scale_y_continuous(labels = scales::number) +
+  labs(title = "Time Awake in Minutes", x= NULL, y= "", fill="Sleep Type") +
+  scale_fill_manual(values = c("#fd8f76", "#8a5f3e", "#ebb583")) + 
+  theme(legend.position="right",text = element_text(size = 20),plot.title = element_text(hjust = 0.5))
+  
+![image.png](attachment:642f7f7f-3996-40fe-a411-6a0ff6ce5b82.png)
+
+Analysis
+
+Based on our findings, it can be inferred that individuals with a sedentary lifestyle tend to experience longer periods of sleep compared to other users. On another hand, highly active users face difficulties in falling asleep compared to those who engage in less physical activity. Users who are at least fairly active find it easier to fall asleep and do not appear to oversleep at all.
+
+5.4 Line Graph- Sleep vs Intensities 
+
+daily_merge_2 <- merge(hourly_intensities, daily_sleep, by=c ("date"))
+head(daily_merge_2)
+
+ggplot(data= daily_merge_2)+
+  geom_smooth(mapping= aes(x= totalintensity, y= totalminutesasleep, color= "#fd8f76"))+
+  labs(title="Miuntes Asleep vs Total Intensity")
+  
+![image.png](attachment:b21bf438-ac57-4663-8fda-cf95c1135d45.png)
+
+Analysis
+
+There is a positive correlation between higher intensity and longer periods of rest.
+
+5.5 Pie Chart- Use of smart device
+
+minutes_worn_percent %>%
+  ggplot(aes(x="",y=total_percent, fill=labels)) +
+  geom_bar(stat = "identity", width = 1)+
+  coord_polar("y", start=0)+
+  theme_minimal()+
+  theme(axis.title.x= element_blank(),
+        axis.title.y = element_blank(),
+        panel.border = element_blank(), 
+        panel.grid = element_blank(), 
+        axis.ticks = element_blank(),
+        axis.text.x = element_blank(),
+        plot.title = element_text(hjust = 0.5, size=14, face = "bold")) +
+  geom_text(aes(label = labels),
+            position = position_stack(vjust = 0.5))+
+  scale_fill_manual(values = c("#8a5f3e", "#ebb583", "#fd8f76"),
+                    labels = c("Less than half day", "More than half day", "All day"))+
+  labs(title="Daily Usage of Smart Device")
+  
+![image.png](attachment:c605a819-6b1b-464a-b3fd-c5d04688a41b.png)
+
+Analysis
+
+The majority of users keep their devices on for the entire duration of the day, with over 97% of users wearing them for more than half of the day.
+
+# <span style="color:#fd8f76;" >6. Act- Recommendations</span> 
+
+Bellabeat aims to empower women by equipping them with the necessary information to understand their daily routines and behaviors. 
+
+To support this objective and assist Bellabeat in accomplishing their mission, I suggest utilizing individual tracking data for further examination after gathering additional information. The datasets employed in our analysis were limited in size and may possess biases due to the absence of demographic details regarding the users. Given that Bellabeat's target audience comprises young and adult women, I recommend that they continue to identify trends in order to develop a marketing strategy specifically tailored to this demographic. 
+
+With that in mind, our analysis has uncovered various trends that could enhance our online campaign and enhance the functionality of the **Bellabeat app**: 
+
+
+
+>1. **Weekly notification on logging steps and setting goals on app**- Users were classified into 4 categories and we discovered that even the most active users are not logging their steps. We can encourage customers to set goals in the beginning of the week on Mondays and log steps throughout sending them alerts if they haven't logged their steps by 9pm that night. Because Tuesdays are the most intense week day, the immediate success can possibly encourage users to create a routine. 
+>2. **Notification of mindfulness techniques**- Based on our results we can see that users rest on Sundays. These days should be dedicated to promoting less intense physical activities. Bellabeat could send information on developing mindfulness practices and encouraging self love and awareness. Users can analyze their own sleep and activity patterns to promote a balanced lifestyle. 
+>3. **Trail and food recommendations in the area**- We are aware that some people prefer to order lunch or bring lunch to work. However, this could be due to time constraints. The app can include nearby restaurants that are walking distance for users to utilize during lunch or for dinner after work. The app can also include walking trails and nature preserves to individuals who have been sedentary to avoid overly extended rest periods since only 58% of users experience normal sleep. 
+>4. **Promote 24/7 wear**- Because 97% of users wear their devices for more than half the day, we can continue promoting Bellabeat products features: water-resistant, fashion/ elegant products, long-lasting batteries.
+
+<h1 style="color:#fd8f76;" >Thank you for your interest in my first independent R project! </h1>
